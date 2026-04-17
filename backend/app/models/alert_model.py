@@ -1,21 +1,35 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, String, Float, DateTime
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
+import uuid
 
 from app.core.database import Base
 
 class Alert(Base):
-
     __tablename__ = "alerts"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    encrypted_content = Column(String)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
 
-    resolved = Column(Boolean, default=False)
+    encrypted_content = Column(String, nullable=False)
+    encrypted_key = Column(String, nullable=False)
+
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
 
     location = Column(
-        Geometry(
-            geometry_type='POINT',
-            srid=4326
-        )
+        Geometry(geometry_type='POINT', srid=4326)
     )
+
+    severity = Column(String, default="high")
+    status = Column(String, default="active")
+
+    assigned_to = Column(UUID(as_uuid=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
