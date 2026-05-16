@@ -2,9 +2,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
 
-from app.models.alert_model import Alert
-from app.schemas.alert_schema import AlertCreate, AlertUpdate
-from app.utils.gps import create_point
+from backend.app.models.alert_model import Alert
+from backend.app.schemas.alert_schema import AlertCreate, AlertUpdate
+from backend.app.utils.gps import create_point
 
 class AlertService:
 

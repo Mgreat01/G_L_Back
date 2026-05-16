@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from backend.app.core.database import get_db
 
-from app.schemas.alert_schema import (
+from backend.app.schemas.alert_schema import (
     AlertCreate,
     AlertUpdate,
     AlertResponse
 )
 
-from app.services.alert_service import AlertService
+from backend.app.services.alert_service import AlertService
 
 router = APIRouter(
     prefix="/alerts",
