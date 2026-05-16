@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 import uuid
 
-from backend.app.core.database import Base
+from app.core.database import Base
 
 class Alert(Base):
     __tablename__ = "alerts"
