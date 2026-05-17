@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from fastapi import HTTPException
 
@@ -24,67 +25,78 @@ class AuthService:
         payload: RegisterSchema
     ):
 
-        existing_email = db.query(User)\
-            .filter(User.email == payload.email)\
-            .first()
+        try:
 
-        if existing_email:
+            allowed_roles = [
+                "user",
+                "rescuer"
+            ]
 
-            raise HTTPException(
-                status_code=400,
-                detail="Email already exists"
+            role = (
+                payload.role
+                if payload.role in allowed_roles
+                else "user"
             )
 
-        existing_username = db.query(User)\
-            .filter(User.username == payload.username)\
-            .first()
+            existing_email = db.query(User)\
+                .filter(User.email == payload.email)\
+                .first()
 
-        if existing_username:
+            if existing_email:
 
-            raise HTTPException(
-                status_code=400,
-                detail="Username already exists"
+                raise HTTPException(
+                    status_code=400,
+                    detail="Email already exists"
+                )
+
+            existing_username = db.query(User)\
+                .filter(User.username == payload.username)\
+                .first()
+
+            if existing_username:
+
+                raise HTTPException(
+                    status_code=400,
+                    detail="Username already exists"
+                )
+
+            user = User(
+                username=payload.username,
+                email=payload.email,
+                hashed_password=hash_password(
+                    payload.password
+                ),
+                role=role,
+                public_key=payload.public_key
             )
 
-        allowed_roles = [
-            "user",
-            "rescuer"
-        ]
+            db.add(user)
 
-        role = (
-            payload.role
-            if payload.role in allowed_roles
-            else "user"
-        )
+            db.commit()
 
-        user = User(
-            username=payload.username,
-            email=payload.email,
-            hashed_password=hash_password(
-                payload.password
-            ),
-            role=role,
-            public_key=payload.public_key
-        )
+            db.refresh(user)
 
-        db.add(user)
+            token = create_access_token(user)
 
-        db.commit()
-
-        db.refresh(user)
-
-        token = create_access_token(user)
-
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": str(user.id),
-                "username": user.username,
-                "email": user.email,
-                "role": user.role
+            return {
+                "access_token": token,
+                "token_type": "bearer",
+                "user": {
+                    "id": str(user.id),
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role
+                }
             }
-        }
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error: {str(e)}"
+            )
 
     @staticmethod
     def login(

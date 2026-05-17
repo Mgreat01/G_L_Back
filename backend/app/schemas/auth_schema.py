@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import (
     BaseModel,
     EmailStr,
@@ -5,6 +7,13 @@ from pydantic import (
 )
 
 from typing import Optional, Literal
+
+role: Optional[Literal[
+    "user",
+    "rescuer",
+    "admin",
+    "operator"
+]] = "user"
 
 
 class RegisterSchema(BaseModel):

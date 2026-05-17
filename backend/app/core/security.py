@@ -4,6 +4,9 @@ from jose import jwt, JWTError
 
 from passlib.context import CryptContext
 
+from app.models.user_model import User
+from app.core.database import SessionLocal
+
 from fastapi import (
     Depends,
     HTTPException,
@@ -89,10 +92,33 @@ def get_current_user(
             algorithms=[ALGORITHM]
         )
 
+        user_id = payload.get("sub")
+
+        if not user_id:
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+
+        db = SessionLocal()
+
+        user = db.query(User)\
+            .filter(User.id == user_id)\
+            .first()
+
+        if not user:
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+
         return {
-            "id": payload.get("sub"),
-            "email": payload.get("email"),
-            "role": payload.get("role")
+            "id": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "username": user.username
         }
 
     except JWTError:
@@ -104,19 +130,19 @@ def get_current_user(
 
 
 
-def require_roles(roles: list):
+def require_roles(allowed_roles: list):
 
-    def checker(
-        current_user: dict = Depends(get_current_user)
+    def role_checker(
+        current_user=Depends(get_current_user)
     ):
 
-        if current_user["role"] not in roles:
+        if current_user["role"] not in allowed_roles:
 
             raise HTTPException(
                 status_code=403,
-                detail="Access forbidden"
+                detail="Access denied"
             )
 
         return current_user
 
-    return checker
+    return role_checker
