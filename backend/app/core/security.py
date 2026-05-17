@@ -1,18 +1,35 @@
 from datetime import datetime, timedelta
+
 from jose import jwt, JWTError
 
 from passlib.context import CryptContext
 
-from fastapi import Depends, HTTPException, status
+from fastapi import (
+    Depends,
+    HTTPException,
+    status
+)
 
 from fastapi.security import (
     HTTPBearer,
     HTTPAuthorizationCredentials
 )
 
-SECRET_KEY = "CHANGE_ME_SUPER_SECRET_KEY"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+from dotenv import load_dotenv
+
+import os
+
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+ALGORITHM = os.getenv("ALGORITHM")
+
+ACCESS_TOKEN_EXPIRE_HOURS = int(
+    os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", 24)
+)
+
 
 security = HTTPBearer()
 
@@ -48,7 +65,6 @@ def create_access_token(user):
         "sub": str(user.id),
         "email": user.email,
         "role": user.role,
-        "type": "access_token",
         "exp": expire
     }
 
@@ -73,38 +89,28 @@ def get_current_user(
             algorithms=[ALGORITHM]
         )
 
-        user_id = payload.get("sub")
-
-        if not user_id:
-
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid token"
-            )
-
         return {
-            "id": user_id,
+            "id": payload.get("sub"),
             "email": payload.get("email"),
-            "role": payload.get("role"),
-            "token": token
+            "role": payload.get("role")
         }
 
     except JWTError:
 
         raise HTTPException(
-            status_code=401,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
 
 
 
-def require_roles(allowed_roles: list):
+def require_roles(roles: list):
 
-    def role_checker(
+    def checker(
         current_user: dict = Depends(get_current_user)
     ):
 
-        if current_user["role"] not in allowed_roles:
+        if current_user["role"] not in roles:
 
             raise HTTPException(
                 status_code=403,
@@ -113,4 +119,4 @@ def require_roles(allowed_roles: list):
 
         return current_user
 
-    return role_checker
+    return checker

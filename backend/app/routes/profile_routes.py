@@ -1,30 +1,64 @@
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException
+)
+
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+
 from app.services.profile_service import ProfileService
+
+from app.core.security import (
+    get_current_user,
+    require_roles
+)
 
 router = APIRouter(
     prefix="/profiles",
     tags=["Profiles"]
 )
 
-@router.get("/{user_id}")
-def get_profile(
-    user_id: str,
-    db: Session = Depends(get_db)
-):
-    return ProfileService.get_profile(db, user_id)
 
-@router.put("/{user_id}")
-def update_profile(
-    user_id: str,
+
+@router.get("/me")
+def my_profile(
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return ProfileService.update_profile(db, user_id)
+
+    return ProfileService.get_profile(
+        db,
+        current_user["id"]
+    )
+
+
+
+@router.put("/me")
+def update_my_profile(
+    data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    return ProfileService.update_profile(
+        db,
+        current_user["id"],
+        data
+    )
+
+
 
 @router.get("/rescue-team/public-keys")
 def rescue_public_keys(
+    current_user = Depends(
+        require_roles([
+            "rescuer",
+            "admin"
+        ])
+    ),
     db: Session = Depends(get_db)
 ):
+
     return ProfileService.get_rescue_keys(db)
