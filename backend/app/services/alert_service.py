@@ -6,25 +6,40 @@ from app.models.alert_model import Alert
 from app.schemas.alert_schema import AlertCreate, AlertUpdate
 from app.utils.gps import create_point
 
+from geoalchemy2.shape import to_shape
+from shapely.geometry import mapping
+
+
+def serialize_alert(alert: Alert):
+    """Convertit un objet Alert SQLAlchemy en dict JSON-compatible."""
+    return {
+        "id": str(alert.id),
+        "user_id": str(alert.user_id),
+        "encrypted_content": alert.encrypted_content,
+        "encrypted_key": alert.encrypted_key,
+        "latitude": alert.latitude,
+        "longitude": alert.longitude,
+        "location": mapping(to_shape(alert.location)) if alert.location else None,
+        "severity": alert.severity,
+        "status": alert.status,
+        "assigned_to": str(alert.assigned_to) if alert.assigned_to else None,
+        "created_at": alert.created_at,
+        "acknowledged_at": alert.acknowledged_at,
+        "resolved_at": alert.resolved_at,
+    }
+
+
 class AlertService:
 
     @staticmethod
     def create_alert(db: Session, payload: AlertCreate, user_id):
-
         alert = Alert(
             user_id=user_id,
-
             encrypted_content=payload.encrypted_content,
             encrypted_key=payload.encrypted_key,
-
             latitude=payload.latitude,
             longitude=payload.longitude,
-
-            location=create_point(
-                payload.longitude,
-                payload.latitude
-            ),
-
+            location=create_point(payload.longitude, payload.latitude),
             severity=payload.severity,
             status="active"
         )
@@ -33,26 +48,16 @@ class AlertService:
         db.commit()
         db.refresh(alert)
 
-        return alert
+        return serialize_alert(alert)
 
     @staticmethod
     def get_alerts(db: Session):
-
-        return db.query(Alert)\
-            .filter(Alert.status.in_(["active", "acknowledged"]))\
-            .all()
+        alerts = db.query(Alert).filter(Alert.status.in_(["active", "acknowledged"])).all()
+        return [serialize_alert(a) for a in alerts]
 
     @staticmethod
-    def update_alert(
-        db: Session,
-        alert_id,
-        payload: AlertUpdate
-    ):
-
-        alert = db.query(Alert)\
-            .filter(Alert.id == alert_id)\
-            .first()
-
+    def update_alert(db: Session, alert_id, payload: AlertUpdate):
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
         if not alert:
             return None
 
@@ -70,36 +75,48 @@ class AlertService:
         db.commit()
         db.refresh(alert)
 
-        return alert
+        return serialize_alert(alert)
 
     @staticmethod
-    def nearby_alerts(
-        db: Session,
-        latitude: float,
-        longitude: float,
-        radius_meters: float
-    ):
-
+    def nearby_alerts(db: Session, latitude: float, longitude: float, radius_meters: float):
         query = text("""
-            SELECT *
+            SELECT id, user_id, encrypted_content, encrypted_key,
+                   latitude, longitude,
+                   ST_AsGeoJSON(location) as location,
+                   severity, status, assigned_to,
+                   created_at, acknowledged_at, resolved_at
             FROM alerts
             WHERE ST_DWithin(
                 location::geography,
-                ST_SetSRID(
-                    ST_MakePoint(:longitude, :latitude),
-                    4326
-                )::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
                 :radius
             )
         """)
 
-        result = db.execute(
-            query,
-            {
-                "longitude": longitude,
-                "latitude": latitude,
-                "radius": radius_meters
-            }
-        )
+        result = db.execute(query, {
+            "longitude": longitude,
+            "latitude": latitude,
+            "radius": radius_meters
+        })
 
-        return result.fetchall()
+        rows = result.fetchall()
+
+        alerts = []
+        for row in rows:
+            alerts.append({
+                "id": str(row.id),
+                "user_id": str(row.user_id),
+                "encrypted_content": row.encrypted_content,
+                "encrypted_key": row.encrypted_key,
+                "latitude": row.latitude,
+                "longitude": row.longitude,
+                "location": row.location,
+                "severity": row.severity,
+                "status": row.status,
+                "assigned_to": str(row.assigned_to) if row.assigned_to else None,
+                "created_at": row.created_at,
+                "acknowledged_at": row.acknowledged_at,
+                "resolved_at": row.resolved_at,
+            })
+
+        return alerts
