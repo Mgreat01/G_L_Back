@@ -29,6 +29,7 @@ class AuthService:
             .first()
 
         if existing_email:
+
             raise HTTPException(
                 status_code=400,
                 detail="Email already exists"
@@ -39,10 +40,22 @@ class AuthService:
             .first()
 
         if existing_username:
+
             raise HTTPException(
                 status_code=400,
                 detail="Username already exists"
             )
+
+        allowed_roles = [
+            "user",
+            "rescuer"
+        ]
+
+        role = (
+            payload.role
+            if payload.role in allowed_roles
+            else "user"
+        )
 
         user = User(
             username=payload.username,
@@ -50,7 +63,7 @@ class AuthService:
             hashed_password=hash_password(
                 payload.password
             ),
-            role=payload.role,
+            role=role,
             public_key=payload.public_key
         )
 
@@ -60,13 +73,13 @@ class AuthService:
 
         db.refresh(user)
 
-        token = create_access_token(user.id)
+        token = create_access_token(user)
 
         return {
             "access_token": token,
             "token_type": "bearer",
             "user": {
-                "id": user.id,
+                "id": str(user.id),
                 "username": user.username,
                 "email": user.email,
                 "role": user.role
@@ -84,6 +97,7 @@ class AuthService:
             .first()
 
         if not user:
+
             raise HTTPException(
                 status_code=401,
                 detail="Invalid credentials"
@@ -95,18 +109,19 @@ class AuthService:
         )
 
         if not valid_password:
+
             raise HTTPException(
                 status_code=401,
                 detail="Invalid credentials"
             )
 
-        token = create_access_token(user.id)
+        token = create_access_token(user)
 
         return {
             "access_token": token,
             "token_type": "bearer",
             "user": {
-                "id": user.id,
+                "id": str(user.id),
                 "username": user.username,
                 "email": user.email,
                 "role": user.role

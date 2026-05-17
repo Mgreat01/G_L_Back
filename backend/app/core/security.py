@@ -4,10 +4,13 @@ from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials
+)
 
-SECRET_KEY = "MaCléUltraSecrèteTrèsLongueEtSécurisée"
+SECRET_KEY = "CHANGE_ME_SUPER_SECRET_KEY"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
@@ -19,9 +22,8 @@ pwd_context = CryptContext(
 )
 
 
-
-
 def hash_password(password: str):
+
     return pwd_context.hash(password)
 
 
@@ -29,21 +31,24 @@ def verify_password(
     plain_password: str,
     hashed_password: str
 ):
+
     return pwd_context.verify(
         plain_password,
         hashed_password
     )
 
 
-
-def create_access_token(user_id: str):
+def create_access_token(user):
 
     expire = datetime.utcnow() + timedelta(
         hours=ACCESS_TOKEN_EXPIRE_HOURS
     )
 
     payload = {
-        "sub": str(user_id),
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "type": "access_token",
         "exp": expire
     }
 
@@ -71,19 +76,41 @@ def get_current_user(
         user_id = payload.get("sub")
 
         if not user_id:
+
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=401,
                 detail="Invalid token"
             )
 
         return {
             "id": user_id,
+            "email": payload.get("email"),
+            "role": payload.get("role"),
             "token": token
         }
 
     except JWTError:
 
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid or expired token"
         )
+
+
+
+def require_roles(allowed_roles: list):
+
+    def role_checker(
+        current_user: dict = Depends(get_current_user)
+    ):
+
+        if current_user["role"] not in allowed_roles:
+
+            raise HTTPException(
+                status_code=403,
+                detail="Access forbidden"
+            )
+
+        return current_user
+
+    return role_checker

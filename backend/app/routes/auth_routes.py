@@ -13,6 +13,7 @@ from app.schemas.auth_schema import (
 
 from app.services.auth_service import AuthService
 
+from app.core.security import require_roles
 
 router = APIRouter(
     prefix="/auth",
@@ -55,4 +56,36 @@ def secure_test(
     return {
         "message": "secure route",
         "user_id": current_user["id"]
+    }
+
+@router.get("/me")
+def me(
+    current_user: dict = Depends(get_current_user)
+):
+
+    return current_user
+
+@router.get("/admin-only")
+def admin_route(
+    current_user = Depends(
+        require_roles(["admin"])
+    )
+):
+
+    return {
+        "message": "admin access"
+    }
+
+@router.get("/rescuer-only")
+def rescuer_route(
+    current_user = Depends(
+        require_roles([
+            "rescuer",
+            "admin"
+        ])
+    )
+):
+
+    return {
+        "message": "rescuer access"
     }
