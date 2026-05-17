@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
@@ -51,20 +52,79 @@ class AlertService:
         return serialize_alert(alert)
 
     @staticmethod
-    def get_alerts(db: Session):
-        alerts = db.query(Alert).filter(Alert.status.in_(["active", "acknowledged"])).all()
-        return [serialize_alert(a) for a in alerts]
+    def get_alerts(
+            db: Session,
+            current_user
+    ):
+
+        role = current_user["role"]
+
+        query = db.query(Alert)
+
+        if role == "user":
+            query = query.filter(
+                Alert.user_id == current_user["id"]
+            )
+
+        alerts = query.order_by(
+            Alert.created_at.desc()
+        ).all()
+
+        return [
+            serialize_alert(a)
+            for a in alerts
+        ]
 
     @staticmethod
-    def update_alert(db: Session, alert_id, payload: AlertUpdate):
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
-        if not alert:
-            return None
+    def update_alert(
+            db: Session,
+            alert_id,
+            payload: AlertUpdate,
+            current_user
+    ):
 
-        alert.status = payload.status
+        alert = db.query(Alert) \
+            .filter(Alert.id == alert_id) \
+            .first()
+
+        if not alert:
+            raise HTTPException(
+                status_code=404,
+                detail="Alert not found"
+            )
+
+        role = current_user["role"]
+
+        is_owner = str(alert.user_id) == current_user["id"]
+
+        if role not in ["admin", "rescuer"] and not is_owner:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied"
+            )
+
+        if payload.status:
+            alert.status = payload.status
 
         if payload.assigned_to:
+
+            if role not in ["admin", "operator"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only operators/admins can assign alerts"
+                )
+
             alert.assigned_to = payload.assigned_to
+
+        if payload.severity:
+
+            if role not in ["admin", "operator"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot modify severity"
+                )
+
+            alert.severity = payload.severity
 
         if payload.status == "acknowledged":
             alert.acknowledged_at = datetime.utcnow()
@@ -73,6 +133,7 @@ class AlertService:
             alert.resolved_at = datetime.utcnow()
 
         db.commit()
+
         db.refresh(alert)
 
         return serialize_alert(alert)

@@ -32,28 +32,27 @@ def create_alert(
 
 @router.get("/")
 def get_alerts(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
-    return AlertService.get_alerts(db)
+
+    return AlertService.get_alerts(
+        db,
+        current_user
+    )
 
 
 @router.put("/{alert_id}")
 def update_alert(
     alert_id: str,
     payload: AlertUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
 
-    alert = AlertService.update_alert(
+    return AlertService.update_alert(
         db,
         alert_id,
-        payload
+        payload,
+        current_user
     )
-
-    if not alert:
-        raise HTTPException(
-            status_code=404,
-            detail="Alert not found"
-        )
-
-    return alert

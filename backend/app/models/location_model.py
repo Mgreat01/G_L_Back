@@ -1,6 +1,15 @@
-from sqlalchemy import Column, Float, ForeignKey
+from sqlalchemy import (
+    Column,
+    Float,
+    ForeignKey
+)
+
+from sqlalchemy.orm import relationship
+
 from sqlalchemy.dialects.postgresql import UUID
+
 from sqlalchemy.sql import func
+
 from sqlalchemy.types import DateTime
 
 import uuid
@@ -20,7 +29,9 @@ class LocationUpdate(Base):
 
     alert_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("alerts.id")
+        ForeignKey("alerts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
     )
 
     latitude = Column(Float, nullable=False)
@@ -32,4 +43,9 @@ class LocationUpdate(Base):
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now()
+    )
+
+    alert = relationship(
+        "Alert",
+        back_populates="locations"
     )

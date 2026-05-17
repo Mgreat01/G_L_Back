@@ -5,6 +5,8 @@ from app.core.database import get_db
 from app.schemas.location_schema import LocationCreate
 from app.services.location_service import LocationService
 
+from app.core.security import get_current_user
+
 router = APIRouter(
     prefix="/locations",
     tags=["Locations"]
@@ -13,9 +15,17 @@ router = APIRouter(
 @router.post("/")
 def create_location(
     location: LocationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+
 ):
-    return LocationService.create_location(db, location)
+
+
+    return LocationService.create_location(
+        db,
+        location,
+        current_user
+    )
 
 @router.get("/{alert_id}")
 def get_locations(
