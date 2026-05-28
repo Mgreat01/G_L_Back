@@ -244,3 +244,246 @@ To contribute to the project:
 
 ---
 
+# 🧠 Projet Backend FastAPI
+
+Ce projet est une application backend complète développée avec FastAPI, offrant une architecture robuste et évolutive pour la création de services web modernes. Il intègre des fonctionnalités telles que l’authentification des utilisateurs, l’autorisation, ainsi que des fonctionnalités géospatiales, ce qui en fait une excellente base pour différents types d’applications.
+
+Le projet est conçu pour être facilement personnalisable et extensible afin d’ajouter de nouvelles fonctionnalités selon les besoins.
+
+---
+
+# 🚀 Fonctionnalités
+
+* Authentification et autorisation des utilisateurs avec JWT (JSON Web Token)
+* Fonctionnalités géospatiales grâce à GeoAlchemy2 et Shapely
+* Support de plusieurs moteurs de base de données via SQLAlchemy
+* Middleware CORS pour les requêtes cross-origin
+* Documentation automatique de l’API avec Swagger UI
+* Gestion robuste des erreurs et des logs
+* Architecture modulaire et extensible
+
+---
+
+# 🛠️ Technologies utilisées
+
+* **FastAPI** — Framework Python moderne et rapide pour les APIs
+* **SQLAlchemy** — ORM et toolkit SQL
+* **GeoAlchemy2** — Extension géospatiale pour SQLAlchemy
+* **Shapely** — Manipulation et analyse d’objets géométriques
+* **Passlib** — Hachage sécurisé des mots de passe
+* **Python-Jose** — Gestion des tokens JWT
+* **Pydantic** — Validation et gestion des données
+* **Dotenv** — Chargement des variables d’environnement
+* **PostgreSQL + PostGIS** — Base de données géospatiale
+
+---
+
+# 📦 Installation
+
+## 1. Cloner le projet
+
+```bash
+git clone https://github.com/Mgreat01/G_L_Back.git
+cd G_L_Back
+```
+
+---
+
+## 2. Créer un environnement virtuel
+
+### Windows
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+---
+
+## 3. Installer les dépendances
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# ⚙️ Configuration du fichier `.env`
+
+L’application utilise un fichier `.env` pour stocker les informations sensibles comme :
+
+* les accès à la base de données
+* les clés JWT
+* les paramètres du serveur
+
+Créez un fichier nommé :
+
+```text
+.env
+```
+
+à la racine du projet.
+
+---
+
+# 🧩 Exemple de configuration `.env`
+
+```env
+# ==========================================
+# CONFIGURATION BASE DE DONNÉES
+# ==========================================
+DATABASE_URL=postgresql://postgres:password@localhost:5432/g_l_back
+
+# ==========================================
+# JWT / SÉCURITÉ
+# ==========================================
+SECRET_KEY=votre_cle_secrete_ici
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# ==========================================
+# CONFIGURATION APPLICATION
+# ==========================================
+DEBUG=True
+APP_NAME=FastAPI Backend Project
+
+# ==========================================
+# CONFIGURATION SERVEUR
+# ==========================================
+HOST=0.0.0.0
+PORT=8000
+```
+
+---
+
+# 📘 Explication des variables
+
+| Variable                      | Description                              |
+| ----------------------------- | ---------------------------------------- |
+| `DATABASE_URL`                | URL de connexion à PostgreSQL            |
+| `SECRET_KEY`                  | Clé secrète utilisée pour signer les JWT |
+| `ALGORITHM`                   | Algorithme utilisé pour les tokens       |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Durée de validité des tokens             |
+| `DEBUG`                       | Active le mode debug                     |
+| `APP_NAME`                    | Nom de l’application                     |
+| `HOST`                        | Adresse du serveur                       |
+| `PORT`                        | Port du serveur                          |
+
+---
+
+# 🗄️ Configuration PostgreSQL + PostGIS
+
+Ce projet utilise PostgreSQL avec l’extension PostGIS pour les fonctionnalités géospatiales.
+
+## Installer PostgreSQL
+
+Téléchargement :
+
+* https://www.postgresql.org/download/
+
+---
+
+## Créer la base de données
+
+```sql
+CREATE DATABASE g_l_back;
+```
+
+Puis connectez-vous :
+
+```sql
+\c g_l_back
+```
+
+---
+
+## Activer PostGIS
+
+```sql
+CREATE EXTENSION postgis;
+```
+
+---
+
+# ▶️ Lancer l’application
+
+Démarrer le serveur FastAPI :
+
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Ou :
+
+```bash
+python main.py
+```
+
+---
+
+# 📚 Documentation API
+
+Une fois le serveur démarré :
+
+| Documentation | URL                         |
+| ------------- | --------------------------- |
+| Swagger UI    | http://localhost:8000/docs  |
+| ReDoc         | http://localhost:8000/redoc |
+
+---
+
+# 📂 Structure du projet
+
+```text
+.
+├── backend
+│   ├── app
+│   │   ├── core
+│   │   │   ├── config.py
+│   │   │   ├── database.py
+│   │   │   ├── security.py
+│   │   ├── main.py
+│   │   ├── models
+│   │   ├── routes
+│   │   ├── services
+│   │   ├── utils
+│   │   │   ├── geo_utils.py
+│   │   │   ├── gps.py
+│   ├── requirements.txt
+├── main.py
+├── README.md
+```
+
+---
+
+# 🔐 Recommandations de sécurité
+
+Pour un environnement de production :
+
+* Utiliser une clé `SECRET_KEY` forte
+* Désactiver `DEBUG`
+* Utiliser HTTPS
+* Sécuriser les accès à la base de données
+* Utiliser des fichiers `.env` différents selon les environnements
+
+---
+
+# 🤝 Contribution
+
+Pour contribuer au projet :
+
+1. Forkez le repository
+2. Créez une nouvelle branche
+3. Faites vos modifications
+4. Poussez votre branche
+5. Ouvrez une Pull Request
+
+---
+
