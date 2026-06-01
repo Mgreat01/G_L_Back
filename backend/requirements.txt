@@ -11,3 +11,5 @@ pydantic
 websockets
 cryptography
 python-dotenv
+email-validator
+pydantic[email]

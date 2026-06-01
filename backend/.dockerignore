@@ -1,0 +1,9 @@
+# backend/.dockerignore
+__pycache__
+*.pyc
+.venv
+.env
+.git
+.gitignore
+README.md
+PyJWT.py   # si ce n'est pas nécessaire au runtime
