@@ -13,3 +13,4 @@ cryptography
 python-dotenv
 email-validator
 pydantic[email]
+request

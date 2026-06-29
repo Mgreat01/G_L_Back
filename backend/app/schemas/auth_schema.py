@@ -19,7 +19,7 @@ role: Optional[Literal[
 class RegisterSchema(BaseModel):
 
     username: str = Field(
-        min_length=3,
+        min_length=1,
         max_length=50
     )
 

@@ -6,13 +6,14 @@ from datetime import datetime
 from app.models.alert_model import Alert
 from app.schemas.alert_schema import AlertCreate, AlertUpdate
 from app.utils.gps import create_point
+import requests
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
 
 
 def serialize_alert(alert: Alert):
-    """Convertit un objet Alert SQLAlchemy en dict JSON-compatible."""
+    address = reverse_geocode(alert.latitude, alert.longitude) if alert.latitude and alert.longitude else None
     return {
         "id": str(alert.id),
         "user_id": str(alert.user_id),
@@ -27,7 +28,19 @@ def serialize_alert(alert: Alert):
         "created_at": alert.created_at,
         "acknowledged_at": alert.acknowledged_at,
         "resolved_at": alert.resolved_at,
+        "address": address
     }
+
+def reverse_geocode(lat: float, lon: float):
+    url = "https://nominatim.openstreetmap.org/reverse"
+    params = {"lat": lat, "lon": lon, "format": "json", "addressdetails": 1}
+    headers = {"User-Agent": "alert-app"}  # obligatoire pour Nominatim
+    response = requests.get(url, params=params, headers=headers)
+    if response.status_code != 200:
+        return None
+    data = response.json()
+    return data.get("display_name")
+
 
 
 class AlertService:
