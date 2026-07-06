@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from jose import jwt, JWTError
 
@@ -23,7 +24,11 @@ from dotenv import load_dotenv
 import os
 
 
-load_dotenv()
+backend_dir = Path(__file__).resolve().parents[2]
+project_root = backend_dir.parent
+
+load_dotenv(project_root / ".env")
+load_dotenv(backend_dir / ".env", override=True)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -78,12 +83,7 @@ def create_access_token(user):
     )
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-
-    token = credentials.credentials
-
+def get_user_from_token(token: str, db):
     try:
 
         payload = jwt.decode(
@@ -96,12 +96,7 @@ def get_current_user(
 
         if not user_id:
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-
-        db = SessionLocal()
+            return None
 
         user = db.query(User)\
             .filter(User.id == user_id)\
@@ -109,10 +104,7 @@ def get_current_user(
 
         if not user:
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
+            return None
 
         return {
             "id": str(user.id),
@@ -123,10 +115,30 @@ def get_current_user(
 
     except JWTError:
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
+        return None
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+
+    token = credentials.credentials
+
+    db = SessionLocal()
+
+    try:
+        current_user = get_user_from_token(token, db)
+
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+
+        return current_user
+
+    finally:
+        db.close()
 
 
 

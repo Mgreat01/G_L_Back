@@ -39,8 +39,9 @@ def reverse_geocode(lat: float, lon: float):
     if response.status_code != 200:
         return None
     data = response.json()
-    return data.get("display_name")
-
+    if "error" in data:
+        return None
+    return data.get("display_name", None)
 
 
 class AlertService:
@@ -63,6 +64,8 @@ class AlertService:
         db.refresh(alert)
 
         return serialize_alert(alert)
+
+
 
     @staticmethod
     def get_alerts(
