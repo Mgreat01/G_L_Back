@@ -92,6 +92,20 @@ class AlertService:
         ]
 
     @staticmethod
+    def get_active_alerts_for_admin(db: Session):
+        # Les notifications initiales representent l'etat a traiter au moment
+        # ou l'administrateur ouvre le site, pas l'historique complet.
+        alerts = db.query(Alert) \
+            .filter(Alert.status == "active") \
+            .order_by(Alert.created_at.desc()) \
+            .all()
+
+        return [
+            serialize_alert(alert)
+            for alert in alerts
+        ]
+
+    @staticmethod
     def update_alert(
             db: Session,
             alert_id,

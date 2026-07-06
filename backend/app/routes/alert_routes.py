@@ -43,16 +43,27 @@ async def admin_alerts_websocket(
     token: str = Query(...)
 ):
     db = SessionLocal()
-    current_user = get_user_from_token(token, db)
-
-    if not current_user or current_user["role"] != "admin":
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        db.close()
-        return
-
-    await websocket_manager.connect_admin(websocket)
 
     try:
+        current_user = get_user_from_token(token, db)
+
+        if not current_user or current_user["role"] != "admin":
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        await websocket_manager.connect_admin(websocket)
+
+        initial_alerts = AlertService.get_active_alerts_for_admin(db)
+        initial_sent = await websocket_manager.send_initial_alerts(
+            websocket,
+            initial_alerts
+        )
+
+        if not initial_sent:
+            return
+
+        # La boucle garde la connexion vivante et detecte les fermetures client.
+        # Les notifications sortantes sont envoyees par websocket_manager.
         while True:
             await websocket.receive_text()
     except (RuntimeError, WebSocketDisconnect):
