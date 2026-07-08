@@ -33,7 +33,10 @@ load_dotenv(backend_dir / ".env", override=True)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-ALGORITHM = os.getenv("ALGORITHM")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY must be configured")
+
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 ACCESS_TOKEN_EXPIRE_HOURS = int(
     os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", 24)
@@ -105,7 +108,9 @@ def get_user_from_token(token: str, db):
                     User.id,
                     User.email,
                     User.role,
-                    User.username
+                    User.username,
+                    User.is_active,
+                    User.email_verified
                 )
             )\
             .filter(User.id == user_id)\
@@ -115,11 +120,16 @@ def get_user_from_token(token: str, db):
 
             return None
 
+        if not user.is_active:
+            return None
+
         return {
             "id": str(user.id),
             "email": user.email,
             "role": user.role,
-            "username": user.username
+            "username": user.username,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified
         }
 
     except JWTError:

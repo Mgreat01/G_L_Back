@@ -1,6 +1,7 @@
 import uuid
 
-from sqlalchemy import Column, String
+from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy.sql import func
 
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -38,10 +39,36 @@ class User(Base):
 
     role = Column(
         String,
-        default="user"
+        default="user",
+        index=True
     )
 
     public_key = Column(
         String,
         nullable=True
+    )
+
+    public_key_algorithm = Column(
+        String,
+        nullable=True
+    )
+
+    is_active = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        index=True
+    )
+
+    email_verified = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        index=True
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
     )

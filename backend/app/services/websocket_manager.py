@@ -32,6 +32,7 @@ class WebSocketManager:
 
     def __init__(self):
         self.admin_connections: list[WebSocket] = []
+        self.user_connections: dict[str, list[WebSocket]] = {}
 
     async def connect_admin(self, websocket: WebSocket):
         self.disconnect_admin(websocket)
@@ -41,6 +42,19 @@ class WebSocketManager:
     def disconnect_admin(self, websocket: WebSocket):
         if websocket in self.admin_connections:
             self.admin_connections.remove(websocket)
+
+    async def connect_user(self, user_id: str, websocket: WebSocket):
+        self.disconnect_user(user_id, websocket)
+        await websocket.accept()
+        self.user_connections.setdefault(user_id, []).append(websocket)
+
+    def disconnect_user(self, user_id: str, websocket: WebSocket):
+        connections = self.user_connections.get(user_id, [])
+        if websocket in connections:
+            connections.remove(websocket)
+
+        if not connections and user_id in self.user_connections:
+            self.user_connections.pop(user_id, None)
 
     async def send_initial_alerts(self, websocket: WebSocket, alerts: list[dict]):
         # Une connexion WebSocket ne rejoue pas naturellement les messages rates.
@@ -56,6 +70,17 @@ class WebSocketManager:
             "data": alert
         })
 
+    async def notify_user(self, user_id: str, message: dict):
+        connections = list(self.user_connections.get(user_id, []))
+
+        await asyncio.gather(
+            *[
+                self.send_to_user(user_id, websocket, message)
+                for websocket in connections
+            ],
+            return_exceptions=True
+        )
+
     async def send_to_admin(self, websocket: WebSocket, message: dict):
         if websocket.client_state != WebSocketState.CONNECTED:
             self.disconnect_admin(websocket)
@@ -70,6 +95,21 @@ class WebSocketManager:
         except (asyncio.TimeoutError, Exception):
             # Si l'envoi echoue, le client est considere mort et retire du pool.
             self.disconnect_admin(websocket)
+            return False
+
+    async def send_to_user(self, user_id: str, websocket: WebSocket, message: dict):
+        if websocket.client_state != WebSocketState.CONNECTED:
+            self.disconnect_user(user_id, websocket)
+            return False
+
+        try:
+            await asyncio.wait_for(
+                websocket.send_json(_json_safe(message)),
+                timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS
+            )
+            return True
+        except (asyncio.TimeoutError, Exception):
+            self.disconnect_user(user_id, websocket)
             return False
 
     async def broadcast_to_admins(self, message: dict):

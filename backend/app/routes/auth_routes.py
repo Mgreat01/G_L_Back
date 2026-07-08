@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 
 from app.core.security import (
-    get_current_user
+    get_current_user,
+    require_roles
 )
 
 from app.schemas.auth_schema import (
@@ -54,3 +55,22 @@ def me(
 ):
 
     return current_user
+
+
+@router.put("/users/{user_id}/activation")
+def set_account_active(
+    user_id: str,
+    is_active: bool,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    return AuthService.set_account_active(db, user_id, is_active)
+
+
+@router.put("/users/{user_id}/verify-email")
+def verify_email(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    return AuthService.verify_email(db, user_id)

@@ -16,6 +16,7 @@ from app.core.security import (
     verify_password,
     create_access_token
 )
+from app.services.crypto_service import normalize_role, validate_public_key
 
 
 class AuthService:
@@ -30,13 +31,19 @@ class AuthService:
 
             allowed_roles = [
                 "user",
-                "rescuer"
+                "rescuer",
+                "rescue_team"
             ]
 
-            role = (
+            role = normalize_role(
                 payload.role
                 if payload.role in allowed_roles
                 else "user"
+            )
+
+            validate_public_key(
+                payload.public_key,
+                payload.public_key_algorithm
             )
 
             existing_email = db.query(User)\
@@ -70,7 +77,10 @@ class AuthService:
                     payload.password
                 ),
                 role=role,
-                public_key=payload.public_key
+                public_key=payload.public_key,
+                public_key_algorithm=payload.public_key_algorithm,
+                is_active=True,
+                email_verified=False
             )
 
             db.add(user)
@@ -88,7 +98,9 @@ class AuthService:
                     "id": str(user.id),
                     "username": user.username,
                     "email": user.email,
-                    "role": user.role
+                    "role": user.role,
+                    "is_active": user.is_active,
+                    "email_verified": user.email_verified
                 }
             }
 
@@ -114,7 +126,9 @@ class AuthService:
                     User.username,
                     User.email,
                     User.role,
-                    User.hashed_password
+                    User.hashed_password,
+                    User.is_active,
+                    User.email_verified
                 )
             )\
             .filter(User.email == payload.email)\
@@ -125,6 +139,12 @@ class AuthService:
             raise HTTPException(
                 status_code=401,
                 detail="Invalid credentials"
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=403,
+                detail="Account is disabled"
             )
 
         valid_password = verify_password(
@@ -146,8 +166,48 @@ class AuthService:
             "token_type": "bearer",
             "user": {
                 "id": str(user.id),
-                "username": user.username,
-                "email": user.email,
-                "role": user.role
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "is_active": user.is_active,
+                    "email_verified": user.email_verified
+                }
             }
+
+    @staticmethod
+    def set_account_active(db: Session, user_id: str, is_active: bool):
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.is_active = is_active
+        db.commit()
+        db.refresh(user)
+
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified
+        }
+
+    @staticmethod
+    def verify_email(db: Session, user_id: str):
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.email_verified = True
+        db.commit()
+        db.refresh(user)
+
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified
         }
