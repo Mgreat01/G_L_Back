@@ -3,7 +3,8 @@ from sqlalchemy import (
     String,
     Float,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    Index
 )
 
 from sqlalchemy.orm import relationship
@@ -64,18 +65,26 @@ class Alert(Base):
 
     status = Column(
         String,
-        default="active"
+        default="active",
+        index=True
     )
 
     assigned_to = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
+        nullable=True,
+        index=True
+    )
+
+    address = Column(
+        String,
         nullable=True
     )
 
     created_at = Column(
         DateTime(timezone=True),
-        server_default=func.now()
+        server_default=func.now(),
+        index=True
     )
 
     acknowledged_at = Column(
@@ -102,4 +111,13 @@ class Alert(Base):
         "LocationUpdate",
         back_populates="alert",
         cascade="all, delete"
+    )
+
+    __table_args__ = (
+        # Index metier pour les listes filtrees puis triees par date.
+        Index("ix_alerts_status_created_at", "status", "created_at"),
+        Index("ix_alerts_user_id_created_at", "user_id", "created_at"),
+        Index("ix_alerts_severity", "severity"),
+        # PostGIS utilise un index GiST pour ST_DWithin et les recherches spatiales.
+        Index("ix_alerts_location_gist", "location", postgresql_using="gist"),
     )

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.database import engine, Base
+from app.core.database import engine, Base, ensure_performance_schema
 
 from app.routes.alert_routes import router as alert_router
 from app.routes.location_routes import router as location_router
@@ -20,6 +20,7 @@ app = FastAPI(
 )
 
 Base.metadata.create_all(bind=engine)
+ensure_performance_schema()
 
 app.add_middleware(
     CORSMiddleware,

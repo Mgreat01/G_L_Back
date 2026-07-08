@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
@@ -20,8 +20,9 @@ router = APIRouter(
 
 
 @router.post("/", response_model=AlertResponse)
-async def create_alert(
+def create_alert(
     alert: AlertCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -32,7 +33,16 @@ async def create_alert(
         current_user["id"]
     )
 
-    await websocket_manager.notify_admins_new_alert(created_alert)
+    # Le broadcast WebSocket et le geocodage inverse partent apres la reponse :
+    # la creation HTTP reste limitee au commit SQL et ne depend pas des admins connectes.
+    background_tasks.add_task(
+        websocket_manager.notify_admins_new_alert,
+        created_alert
+    )
+    background_tasks.add_task(
+        AlertService.resolve_alert_address,
+        created_alert["id"]
+    )
 
     return created_alert
 
@@ -84,13 +94,17 @@ async def legacy_admin_alerts_websocket(
 
 @router.get("/")
 def get_alerts(
+    skip: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
 
     return AlertService.get_alerts(
         db,
-        current_user
+        current_user,
+        skip,
+        limit
     )
 
 

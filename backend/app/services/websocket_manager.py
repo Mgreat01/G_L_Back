@@ -1,8 +1,12 @@
 from datetime import datetime
 from typing import Any
+import asyncio
 
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
+
+
+WEBSOCKET_SEND_TIMEOUT_SECONDS = 2
 
 
 def _json_safe(value: Any):
@@ -58,30 +62,36 @@ class WebSocketManager:
             return False
 
         try:
-            await websocket.send_json(_json_safe(message))
+            await asyncio.wait_for(
+                websocket.send_json(_json_safe(message)),
+                timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS
+            )
             return True
-        except Exception:
+        except (asyncio.TimeoutError, Exception):
             # Si l'envoi echoue, le client est considere mort et retire du pool.
             self.disconnect_admin(websocket)
             return False
 
     async def broadcast_to_admins(self, message: dict):
-        disconnected_websockets = []
         payload = _json_safe(message)
+        connected_websockets = []
 
         # Iterer sur une copie evite les surprises si une deconnexion modifie la liste.
         for websocket in list(self.admin_connections):
             if websocket.client_state != WebSocketState.CONNECTED:
-                disconnected_websockets.append(websocket)
+                self.disconnect_admin(websocket)
                 continue
 
-            try:
-                await websocket.send_json(payload)
-            except Exception:
-                disconnected_websockets.append(websocket)
+            connected_websockets.append(websocket)
 
-        for websocket in disconnected_websockets:
-            self.disconnect_admin(websocket)
+        # Les envois sont paralleles et bornes : un admin lent ne retarde pas les autres.
+        await asyncio.gather(
+            *[
+                self.send_to_admin(websocket, payload)
+                for websocket in connected_websockets
+            ],
+            return_exceptions=True
+        )
 
 
 websocket_manager = WebSocketManager()

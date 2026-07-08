@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy.exc import SQLAlchemyError
 
 from fastapi import HTTPException, status
@@ -20,9 +21,16 @@ class LocationService:
         current_user
     ):
 
-        alert = db.query(Alert).filter(
-            Alert.id == location.alert_id
-        ).first()
+        alert = db.query(Alert) \
+            .options(
+                load_only(
+                    Alert.id,
+                    Alert.user_id,
+                    Alert.status
+                )
+            ) \
+            .filter(Alert.id == location.alert_id) \
+            .first()
 
         if not alert:
 
@@ -78,6 +86,8 @@ class LocationService:
                 location.longitude,
                 location.latitude
             )
+            # Les coordonnees ont change : l'adresse stockee ne doit pas rester stale.
+            alert.address = None
 
             db.commit()
 
@@ -110,11 +120,11 @@ class LocationService:
         alert_id: str
     ):
 
-        alert = db.query(Alert).filter(
-            Alert.id == alert_id
+        alert_exists = db.execute(
+            select(Alert.id).where(Alert.id == alert_id)
         ).first()
 
-        if not alert:
+        if not alert_exists:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -122,6 +132,16 @@ class LocationService:
             )
 
         locations = db.query(LocationUpdate)\
+            .options(
+                load_only(
+                    LocationUpdate.id,
+                    LocationUpdate.alert_id,
+                    LocationUpdate.latitude,
+                    LocationUpdate.longitude,
+                    LocationUpdate.accuracy,
+                    LocationUpdate.created_at
+                )
+            )\
             .filter(
                 LocationUpdate.alert_id == alert_id
             )\

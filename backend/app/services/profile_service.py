@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import load_only
 
 from app.models.user_model import User
 
@@ -12,6 +13,15 @@ class ProfileService:
     ):
 
         user = db.query(User)\
+            .options(
+                load_only(
+                    User.id,
+                    User.username,
+                    User.email,
+                    User.role,
+                    User.public_key
+                )
+            )\
             .filter(User.id == user_id)\
             .first()
 
@@ -34,6 +44,15 @@ class ProfileService:
     ):
 
         user = db.query(User)\
+            .options(
+                load_only(
+                    User.id,
+                    User.username,
+                    User.email,
+                    User.role,
+                    User.public_key
+                )
+            )\
             .filter(User.id == user_id)\
             .first()
 

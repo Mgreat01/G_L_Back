@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 
 from app.models.user_model import User
 from app.core.database import SessionLocal
+from sqlalchemy.orm import load_only
 
 from fastapi import (
     Depends,
@@ -99,6 +100,14 @@ def get_user_from_token(token: str, db):
             return None
 
         user = db.query(User)\
+            .options(
+                load_only(
+                    User.id,
+                    User.email,
+                    User.role,
+                    User.username
+                )
+            )\
             .filter(User.id == user_id)\
             .first()
 

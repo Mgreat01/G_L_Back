@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import load_only
 from sqlalchemy.exc import SQLAlchemyError
 
 from fastapi import HTTPException
@@ -39,6 +40,7 @@ class AuthService:
             )
 
             existing_email = db.query(User)\
+                .options(load_only(User.id))\
                 .filter(User.email == payload.email)\
                 .first()
 
@@ -50,6 +52,7 @@ class AuthService:
                 )
 
             existing_username = db.query(User)\
+                .options(load_only(User.id))\
                 .filter(User.username == payload.username)\
                 .first()
 
@@ -105,6 +108,15 @@ class AuthService:
     ):
 
         user = db.query(User)\
+            .options(
+                load_only(
+                    User.id,
+                    User.username,
+                    User.email,
+                    User.role,
+                    User.hashed_password
+                )
+            )\
             .filter(User.email == payload.email)\
             .first()
 
