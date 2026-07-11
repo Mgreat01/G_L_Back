@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 
 from app.services.profile_service import ProfileService
-from app.schemas.profile_schema import ProfileUpdate
 
 from app.core.security import (
     get_current_user,
@@ -36,18 +35,6 @@ def my_profile(
 
 
 
-@router.put("/me")
-def update_my_profile(
-    data: ProfileUpdate,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-
-    return ProfileService.update_profile(
-        db,
-        current_user["id"],
-        data.dict(exclude_unset=True)
-    )
 
 
 

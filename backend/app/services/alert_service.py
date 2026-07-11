@@ -9,13 +9,11 @@ import time
 from app.models.alert_model import Alert, AlertHistory, AlertRecipientKey
 from app.models.user_model import User
 from app.schemas.alert_schema import AlertCreate, AlertUpdate
-from app.services.audit_service import AuditService
 from app.services.crypto_service import (
     is_privileged_role,
     is_rescue_role,
     normalize_role
 )
-from app.services.notification_service import NotificationService
 from app.utils.gps import create_point
 import requests
 
@@ -321,22 +319,7 @@ class AlertService:
             )
         ).scalars().all()
 
-        for target_user_id in notification_targets:
-            NotificationService.create(
-                db,
-                target_user_id,
-                "new_alert",
-                {"alert_id": str(alert.id), "severity": alert.severity},
-                alert.id
-            )
 
-        AuditService.log(
-            db,
-            "alert.created",
-            "alert",
-            str(alert.id),
-            current_user["id"]
-        )
 
         alert_id = alert.id
         db.commit()
@@ -514,13 +497,7 @@ class AlertService:
             if not payload.status:
                 alert.status = "assigned"
 
-            NotificationService.create(
-                db,
-                payload.assigned_to,
-                "alert_assigned",
-                {"alert_id": str(alert.id)},
-                alert.id
-            )
+
 
         if payload.severity:
 
@@ -546,13 +523,6 @@ class AlertService:
                 "updated",
                 previous_status,
                 previous_assigned_to
-            )
-            AuditService.log(
-                db,
-                "alert.updated",
-                "alert",
-                str(alert.id),
-                current_user["id"]
             )
 
         db.commit()
