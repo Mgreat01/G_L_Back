@@ -74,3 +74,12 @@ def verify_email(
     current_user: dict = Depends(require_roles(["admin"]))
 ):
     return AuthService.verify_email(db, user_id)
+
+
+@router.get("/users/role/{role}")
+def get_users_by_role(
+    role: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    return AuthService.get_users_by_role(db, role)

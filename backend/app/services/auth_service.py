@@ -211,3 +211,22 @@ class AuthService:
             "is_active": user.is_active,
             "email_verified": user.email_verified
         }
+
+    @staticmethod
+    def get_users_by_role(db: Session, role: str):
+        users = db.query(User)\
+            .filter(User.role == role)\
+            .all()
+
+        return [
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "is_active": user.is_active,
+                "email_verified": user.email_verified,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+            for user in users
+        ]
