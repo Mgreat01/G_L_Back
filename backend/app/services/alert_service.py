@@ -14,6 +14,11 @@ from app.services.crypto_service import (
     is_rescue_role,
     normalize_role
 )
+from app.core.permissions import (
+    can_view_alert,
+    can_update_alert,
+    can_assign_alert
+)
 from app.utils.gps import create_point
 import requests
 
@@ -557,7 +562,11 @@ class AlertService:
                    latitude, longitude,
                    ST_AsGeoJSON(location) as location,
                    severity, status, assigned_to,
-                   created_at, acknowledged_at, resolved_at
+                   created_at, acknowledged_at, resolved_at,
+                   ST_Distance(
+                       location::geography,
+                       ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+                   ) as distance_meters
             FROM alerts
             WHERE ST_DWithin(
                 location::geography,
@@ -565,6 +574,7 @@ class AlertService:
                 :radius
             )
             AND location IS NOT NULL
+            ORDER BY distance_meters ASC
         """)
 
         result = db.execute(query, {
@@ -591,6 +601,175 @@ class AlertService:
                 "created_at": row.created_at,
                 "acknowledged_at": row.acknowledged_at,
                 "resolved_at": row.resolved_at,
+                "distance_meters": row.distance_meters
             })
 
         return alerts
+
+    @staticmethod
+    def get_assigned_alerts_for_rescuer(db: Session, rescuer_id: str, status_filter: str = None):
+        """Récupère les alertes assignées à un rescuer avec filtre optionnel sur le statut"""
+        statement = select(*ALERT_COLUMNS).where(
+            Alert.assigned_to == rescuer_id
+        )
+
+        if status_filter:
+            statement = statement.where(Alert.status == status_filter)
+
+        statement = statement.order_by(Alert.created_at.desc())
+
+        rows = db.execute(statement).all()
+
+        return [
+            serialize_alert_row(row)
+            for row in rows
+        ]
+
+    @staticmethod
+    def accept_alert(db: Session, alert_id: str, current_user: dict):
+        """Rescuer accepte une alerte (status -> acknowledged)"""
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        if not can_update_alert(current_user, alert, "acknowledged"):
+            raise HTTPException(
+                status_code=403,
+                detail="Only assigned rescuer can accept alert"
+            )
+
+        previous_status = alert.status
+        alert.status = "acknowledged"
+        alert.acknowledged_at = datetime.utcnow()
+
+        _add_alert_history(
+            db,
+            alert,
+            current_user["id"],
+            "accepted_by_rescuer",
+            previous_status,
+            alert.assigned_to
+        )
+
+        db.commit()
+
+        row = db.execute(
+            select(*ALERT_COLUMNS).where(Alert.id == alert_id)
+        ).first()
+
+        return serialize_alert_row(row, _recipient_keys_for_user(db, row.id, current_user))
+
+    @staticmethod
+    def start_intervention(db: Session, alert_id: str, current_user: dict):
+        """Rescuer commence une intervention (status -> assigned)"""
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        if not can_update_alert(current_user, alert, "assigned"):
+            raise HTTPException(
+                status_code=403,
+                detail="Only assigned rescuer can start intervention"
+            )
+
+        previous_status = alert.status
+        alert.status = "assigned"
+        alert.assigned_at = datetime.utcnow()
+
+        _add_alert_history(
+            db,
+            alert,
+            current_user["id"],
+            "started_intervention",
+            previous_status,
+            alert.assigned_to
+        )
+
+        db.commit()
+
+        row = db.execute(
+            select(*ALERT_COLUMNS).where(Alert.id == alert_id)
+        ).first()
+
+        return serialize_alert_row(row, _recipient_keys_for_user(db, row.id, current_user))
+
+    @staticmethod
+    def resolve_alert_by_rescuer(db: Session, alert_id: str, current_user: dict):
+        """Rescuer résout une alerte (status -> resolved)"""
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        if not can_update_alert(current_user, alert, "resolved"):
+            raise HTTPException(
+                status_code=403,
+                detail="Only assigned rescuer can resolve alert"
+            )
+
+        previous_status = alert.status
+        alert.status = "resolved"
+        alert.resolved_at = datetime.utcnow()
+
+        _add_alert_history(
+            db,
+            alert,
+            current_user["id"],
+            "resolved",
+            previous_status,
+            alert.assigned_to
+        )
+
+        db.commit()
+
+        row = db.execute(
+            select(*ALERT_COLUMNS).where(Alert.id == alert_id)
+        ).first()
+
+        return serialize_alert_row(row, _recipient_keys_for_user(db, row.id, current_user))
+
+    @staticmethod
+    def get_rescuer_dashboard_stats(db: Session, rescuer_id: str, latitude: float = None, longitude: float = None, radius_meters: float = 5000):
+        """Calcule les statistiques pour le dashboard rescuer"""
+        # Alertes assignées
+        assigned_alerts = db.query(Alert).filter(
+            Alert.assigned_to == rescuer_id
+        ).all()
+
+        total_assigned = len(assigned_alerts)
+        active_count = sum(1 for a in assigned_alerts if a.status == "active")
+        acknowledged_count = sum(1 for a in assigned_alerts if a.status == "acknowledged")
+        assigned_count = sum(1 for a in assigned_alerts if a.status == "assigned")
+        resolved_count = sum(1 for a in assigned_alerts if a.status == "resolved")
+
+        # Alertes nearby
+        nearby_count = 0
+        if latitude is not None and longitude is not None:
+            query = text("""
+                SELECT COUNT(*) as count
+                FROM alerts
+                WHERE ST_DWithin(
+                    location::geography,
+                    ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                    :radius
+                )
+                AND location IS NOT NULL
+                AND status IN ('active', 'acknowledged')
+            """)
+            result = db.execute(query, {
+                "longitude": longitude,
+                "latitude": latitude,
+                "radius": radius_meters
+            })
+            nearby_count = result.fetchone().count
+
+        return {
+            "total_assigned": total_assigned,
+            "active_count": active_count,
+            "acknowledged_count": acknowledged_count,
+            "assigned_count": assigned_count,
+            "resolved_count": resolved_count,
+            "nearby_count": nearby_count
+        }

@@ -83,3 +83,11 @@ def get_users_by_role(
     current_user: dict = Depends(require_roles(["admin"]))
 ):
     return AuthService.get_users_by_role(db, role)
+
+
+@router.get("/users")
+def get_all_users(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    return AuthService.get_all_users(db)

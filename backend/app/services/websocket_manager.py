@@ -33,6 +33,7 @@ class WebSocketManager:
     def __init__(self):
         self.admin_connections: list[WebSocket] = []
         self.user_connections: dict[str, list[WebSocket]] = {}
+        self.rescuer_connections: dict[str, list[WebSocket]] = {}
 
     async def connect_admin(self, websocket: WebSocket):
         self.disconnect_admin(websocket)
@@ -55,6 +56,19 @@ class WebSocketManager:
 
         if not connections and user_id in self.user_connections:
             self.user_connections.pop(user_id, None)
+
+    async def connect_rescuer(self, rescuer_id: str, websocket: WebSocket):
+        self.disconnect_rescuer(rescuer_id, websocket)
+        await websocket.accept()
+        self.rescuer_connections.setdefault(rescuer_id, []).append(websocket)
+
+    def disconnect_rescuer(self, rescuer_id: str, websocket: WebSocket):
+        connections = self.rescuer_connections.get(rescuer_id, [])
+        if websocket in connections:
+            connections.remove(websocket)
+
+        if not connections and rescuer_id in self.rescuer_connections:
+            self.rescuer_connections.pop(rescuer_id, None)
 
     async def send_initial_alerts(self, websocket: WebSocket, alerts: list[dict]):
         # Une connexion WebSocket ne rejoue pas naturellement les messages rates.
@@ -111,6 +125,59 @@ class WebSocketManager:
         except (asyncio.TimeoutError, Exception):
             self.disconnect_user(user_id, websocket)
             return False
+
+    async def send_to_rescuer(self, rescuer_id: str, websocket: WebSocket, message: dict):
+        if websocket.client_state != WebSocketState.CONNECTED:
+            self.disconnect_rescuer(rescuer_id, websocket)
+            return False
+
+        try:
+            await asyncio.wait_for(
+                websocket.send_json(_json_safe(message)),
+                timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS
+            )
+            return True
+        except (asyncio.TimeoutError, Exception):
+            self.disconnect_rescuer(rescuer_id, websocket)
+            return False
+
+    async def notify_rescuer(self, rescuer_id: str, message: dict):
+        connections = list(self.rescuer_connections.get(rescuer_id, []))
+
+        await asyncio.gather(
+            *[
+                self.send_to_rescuer(rescuer_id, websocket, message)
+                for websocket in connections
+            ],
+            return_exceptions=True
+        )
+
+    async def send_initial_alerts_to_rescuer(self, websocket: WebSocket, alerts: list[dict]):
+        return await self.send_to_rescuer(
+            websocket,
+            {
+                "type": "initial_alerts",
+                "data": alerts
+            }
+        )
+
+    async def notify_rescuer_alert_assigned(self, rescuer_id: str, alert: dict):
+        await self.notify_rescuer(rescuer_id, {
+            "type": "alert_assigned",
+            "data": alert
+        })
+
+    async def notify_rescuer_alert_updated(self, rescuer_id: str, alert: dict):
+        await self.notify_rescuer(rescuer_id, {
+            "type": "alert_updated",
+            "data": alert
+        })
+
+    async def notify_rescuer_alert_resolved(self, rescuer_id: str, alert: dict):
+        await self.notify_rescuer(rescuer_id, {
+            "type": "alert_resolved",
+            "data": alert
+        })
 
     async def broadcast_to_admins(self, message: dict):
         payload = _json_safe(message)

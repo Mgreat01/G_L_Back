@@ -230,3 +230,20 @@ class AuthService:
             }
             for user in users
         ]
+
+    @staticmethod
+    def get_all_users(db: Session):
+        users = db.query(User).all()
+
+        return [
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "is_active": user.is_active,
+                "email_verified": user.email_verified,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+            for user in users
+        ]

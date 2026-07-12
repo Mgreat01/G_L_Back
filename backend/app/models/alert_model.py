@@ -157,6 +157,8 @@ class Alert(Base):
         Index("ix_alerts_status_created_at", "status", "created_at"),
         Index("ix_alerts_user_id_created_at", "user_id", "created_at"),
         Index("ix_alerts_severity", "severity"),
+        # Index pour les requêtes rescuer (assigned_to + status)
+        Index("ix_alerts_assigned_to_status", "assigned_to", "status"),
         # PostGIS utilise un index GiST pour ST_DWithin et les recherches spatiales.
         Index("ix_alerts_location_gist", "location", postgresql_using="gist"),
     )
@@ -288,4 +290,10 @@ class AlertHistory(Base):
     actor = relationship(
         "User",
         foreign_keys=[actor_user_id]
+    )
+
+    __table_args__ = (
+        # Index pour l'historique des alertes
+        Index("ix_alert_history_alert_id_created_at", "alert_id", "created_at"),
+        Index("ix_alert_history_action", "action"),
     )

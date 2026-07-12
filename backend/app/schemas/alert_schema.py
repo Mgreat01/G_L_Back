@@ -165,3 +165,37 @@ class AlertHistoryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Rescuer-specific schemas
+
+class RescuerAlertStatusUpdate(BaseModel):
+    """Schema pour les mises à jour de statut par un rescuer"""
+    status: Literal["acknowledged", "assigned", "resolved"]
+
+
+class NearbyAlertResponse(BaseModel):
+    """Schema pour la réponse des alertes nearby avec distance"""
+    id: UUID
+    user_id: UUID
+    latitude: float
+    longitude: float
+    location: Any
+    severity: str
+    status: str
+    assigned_to: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    distance_meters: float
+
+    class Config:
+        from_attributes = True
+
+
+class RescuerDashboardStats(BaseModel):
+    """Statistiques pour le dashboard rescuer"""
+    total_assigned: int
+    active_count: int
+    acknowledged_count: int
+    assigned_count: int
+    resolved_count: int
+    nearby_count: int
