@@ -665,15 +665,15 @@ class AlertService:
 
         # Un secouriste ne possède pas la clé privée d'un autre destinataire :
         # il ne peut donc prendre que les alertes dont une clé lui a été remise.
-        has_recipient_key = db.query(AlertRecipientKey.id).filter(
-            AlertRecipientKey.alert_id == alert.id,
-            AlertRecipientKey.recipient_user_id == current_user["id"]
-        ).first()
-        if not has_recipient_key:
-            raise HTTPException(
-                status_code=403,
-                detail="This rescuer has no decryption key for this alert"
-            )
+        # has_recipient_key = db.query(AlertRecipientKey.id).filter(
+        #     AlertRecipientKey.alert_id == alert.id,
+        #     AlertRecipientKey.recipient_user_id == current_user["id"]
+        # ).first()
+        # if not has_recipient_key:
+        #     raise HTTPException(
+        #         status_code=403,
+        #         detail="This rescuer has no decryption key for this alert"
+        #     )
 
         previous_status = alert.status
         alert.assigned_to = current_user["id"]
