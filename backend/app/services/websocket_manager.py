@@ -153,13 +153,20 @@ class WebSocketManager:
         )
 
     async def send_initial_alerts_to_rescuer(self, websocket: WebSocket, alerts: list[dict]):
-        return await self.send_to_rescuer(
-            websocket,
-            {
-                "type": "initial_alerts",
-                "data": alerts
-            }
-        )
+        if websocket.client_state != WebSocketState.CONNECTED:
+            return False
+
+        try:
+            await asyncio.wait_for(
+                websocket.send_json(_json_safe({
+                    "type": "initial_alerts",
+                    "data": alerts
+                })),
+                timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS
+            )
+            return True
+        except (asyncio.TimeoutError, Exception):
+            return False
 
     async def notify_rescuer_alert_assigned(self, rescuer_id: str, alert: dict):
         await self.notify_rescuer(rescuer_id, {

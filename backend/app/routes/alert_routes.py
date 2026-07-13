@@ -7,6 +7,7 @@ from app.core.permissions import can_view_nearby_alerts
 from app.schemas.alert_schema import (
     AlertCreate,
     AlertUpdate,
+    AdminAlertAssignment,
     AlertResponse,
     AlertHistoryResponse,
     RescuerAlertStatusUpdate,
@@ -163,6 +164,51 @@ def update_alert(
     )
 
     return updated_alert
+
+
+@router.put("/{alert_id}/assign", response_model=AlertResponse)
+def assign_alert_by_admin(
+    alert_id: str,
+    payload: AdminAlertAssignment,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Affecte une alerte à un secouriste choisi par un admin/opérateur."""
+    assigned_alert = AlertService.assign_alert(db, alert_id, payload, current_user)
+
+    background_tasks.add_task(
+        websocket_manager.notify_rescuer_alert_assigned,
+        assigned_alert["assigned_to"],
+        assigned_alert
+    )
+    background_tasks.add_task(
+        websocket_manager.broadcast_to_admins,
+        {"type": "alert_assigned", "data": assigned_alert}
+    )
+    return assigned_alert
+
+
+@router.put("/{alert_id}/claim", response_model=AlertResponse)
+def claim_alert_by_rescuer(
+    alert_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Permet à un secouriste de s'assigner une alerte disponible."""
+    claimed_alert = AlertService.claim_alert(db, alert_id, current_user)
+
+    background_tasks.add_task(
+        websocket_manager.notify_rescuer_alert_assigned,
+        claimed_alert["assigned_to"],
+        claimed_alert
+    )
+    background_tasks.add_task(
+        websocket_manager.broadcast_to_admins,
+        {"type": "alert_claimed", "data": claimed_alert}
+    )
+    return claimed_alert
 
 
 @router.get("/{alert_id}/history", response_model=list[AlertHistoryResponse])

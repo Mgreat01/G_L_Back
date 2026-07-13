@@ -99,6 +99,19 @@ class AlertUpdate(BaseModel):
     severity: Optional[AlertSeverity] = None
 
 
+class AdminAlertAssignment(BaseModel):
+    """Affectation d'une alerte par un administrateur ou un opérateur.
+
+    ``recipient_key`` est nécessaire si le secouriste n'a pas déjà une clé de
+    déchiffrement associée à cette alerte. Elle doit être chiffrée côté client
+    avec la clé publique du secouriste ciblé.
+    """
+
+    rescuer_id: UUID
+
+    recipient_key: Optional[AlertRecipientKeyCreate] = None
+
+
 class AlertResponse(BaseModel):
 
     id: UUID

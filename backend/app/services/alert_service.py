@@ -8,7 +8,7 @@ import time
 
 from app.models.alert_model import Alert, AlertHistory, AlertRecipientKey
 from app.models.user_model import User
-from app.schemas.alert_schema import AlertCreate, AlertUpdate
+from app.schemas.alert_schema import AlertCreate, AlertUpdate, AdminAlertAssignment
 from app.services.crypto_service import (
     is_privileged_role,
     is_rescue_role,
@@ -219,6 +219,69 @@ def _add_alert_history(
             new_assigned_to=alert.assigned_to
         )
     )
+
+
+def _get_active_rescuer(db: Session, rescuer_id):
+    """Retourne un secouriste actif ou refuse une affectation invalide."""
+    rescuer = db.query(User).filter(User.id == rescuer_id).first()
+
+    if (
+        not rescuer
+        or not rescuer.is_active
+        or not rescuer.email_verified
+        or not is_rescue_role(rescuer.role)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="The assignee must be an active, verified rescuer"
+        )
+
+    return rescuer
+
+
+def _ensure_assignable_alert(alert: Alert):
+    if alert.status in {"resolved", "cancelled"}:
+        raise HTTPException(
+            status_code=409,
+            detail="A resolved or cancelled alert cannot be assigned"
+        )
+
+
+def _add_recipient_key_if_needed(
+    db: Session,
+    alert: Alert,
+    rescuer_id,
+    recipient_key
+):
+    existing_key = db.query(AlertRecipientKey).filter(
+        AlertRecipientKey.alert_id == alert.id,
+        AlertRecipientKey.recipient_user_id == rescuer_id
+    ).first()
+
+    if existing_key:
+        return
+
+    if not recipient_key:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "An encrypted recipient key for the assigned rescuer is required "
+                "because this alert is end-to-end encrypted"
+            )
+        )
+
+    if recipient_key.recipient_user_id != rescuer_id:
+        raise HTTPException(
+            status_code=422,
+            detail="recipient_key.recipient_user_id must match rescuer_id"
+        )
+
+    db.add(AlertRecipientKey(
+        alert_id=alert.id,
+        recipient_user_id=rescuer_id,
+        encrypted_key=recipient_key.encrypted_key,
+        key_encryption_algorithm=recipient_key.key_encryption_algorithm
+    ))
 
 def reverse_geocode(lat: float, lon: float):
     cached_address = _get_cached_address(lat, lon)
@@ -496,6 +559,9 @@ class AlertService:
                     detail="Only operators/admins can assign alerts"
                 )
 
+            _get_active_rescuer(db, payload.assigned_to)
+            _ensure_assignable_alert(alert)
+            _add_recipient_key_if_needed(db, alert, payload.assigned_to, None)
             alert.assigned_to = payload.assigned_to
             alert.assigned_at = datetime.utcnow()
             if not payload.status:
@@ -539,6 +605,89 @@ class AlertService:
             row,
             _recipient_keys_for_user(db, row.id, current_user)
         )
+
+    @staticmethod
+    def assign_alert(
+            db: Session,
+            alert_id: str,
+            payload: AdminAlertAssignment,
+            current_user: dict
+    ):
+        """Affecte une alerte à un secouriste depuis la console d'administration."""
+        if not is_privileged_role(current_user["role"]):
+            raise HTTPException(status_code=403, detail="Only operators/admins can assign alerts")
+
+        alert = db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        _ensure_assignable_alert(alert)
+        _get_active_rescuer(db, payload.rescuer_id)
+
+        previous_status = alert.status
+        previous_assigned_to = alert.assigned_to
+        _add_recipient_key_if_needed(db, alert, payload.rescuer_id, payload.recipient_key)
+
+        alert.assigned_to = payload.rescuer_id
+        alert.assigned_at = datetime.utcnow()
+        alert.status = "assigned"
+
+        _add_alert_history(
+            db, alert, current_user["id"], "assigned_by_admin",
+            previous_status, previous_assigned_to
+        )
+        db.commit()
+
+        row = db.execute(select(*ALERT_COLUMNS).where(Alert.id == alert.id)).first()
+        return serialize_alert_row(row, _recipient_keys_for_user(db, row.id, current_user))
+
+    @staticmethod
+    def claim_alert(db: Session, alert_id: str, current_user: dict):
+        """Permet à un secouriste de prendre lui-même une alerte disponible."""
+        if not is_rescue_role(current_user["role"]):
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if not current_user.get("email_verified"):
+            raise HTTPException(
+                status_code=403,
+                detail="Only verified rescuers can self-assign alerts"
+            )
+
+        alert = db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        if alert.status != "active" or alert.assigned_to is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="This alert is no longer available for self-assignment"
+            )
+
+        # Un secouriste ne possède pas la clé privée d'un autre destinataire :
+        # il ne peut donc prendre que les alertes dont une clé lui a été remise.
+        has_recipient_key = db.query(AlertRecipientKey.id).filter(
+            AlertRecipientKey.alert_id == alert.id,
+            AlertRecipientKey.recipient_user_id == current_user["id"]
+        ).first()
+        if not has_recipient_key:
+            raise HTTPException(
+                status_code=403,
+                detail="This rescuer has no decryption key for this alert"
+            )
+
+        previous_status = alert.status
+        alert.assigned_to = current_user["id"]
+        alert.assigned_at = datetime.utcnow()
+        alert.status = "assigned"
+
+        _add_alert_history(
+            db, alert, current_user["id"], "claimed_by_rescuer",
+            previous_status, None
+        )
+        db.commit()
+
+        row = db.execute(select(*ALERT_COLUMNS).where(Alert.id == alert.id)).first()
+        return serialize_alert_row(row, _recipient_keys_for_user(db, row.id, current_user))
 
     @staticmethod
     def get_alert_history(db: Session, alert_id: str, current_user):
@@ -620,7 +769,13 @@ class AlertService:
         rows = db.execute(statement).all()
 
         return [
-            serialize_alert_row(row)
+            serialize_alert_row(
+                row,
+                _recipient_keys_for_user(db, row.id, {
+                    "id": str(rescuer_id),
+                    "role": "rescuer"
+                })
+            )
             for row in rows
         ]
 
