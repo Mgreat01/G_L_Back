@@ -414,8 +414,7 @@ class AlertService:
             db: Session,
             limit: int | None = None
     ):
-        # Les notifications initiales representent l'etat a traiter au moment
-        # ou l'administrateur ouvre le site, pas l'historique complet.
+
         statement = select(*ALERT_COLUMNS) \
             .where(Alert.status.in_(["active", "acknowledged", "assigned"])) \
             .order_by(Alert.created_at.desc())
