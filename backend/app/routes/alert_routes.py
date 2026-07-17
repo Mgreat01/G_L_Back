@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.security import get_current_user, get_user_from_token
-from app.core.permissions import can_view_nearby_alerts
+from app.core.permissions import can_view_nearby_alerts, has_rescuer_privileges
 from app.schemas.alert_schema import (
     AlertCreate,
     AlertUpdate,
@@ -253,7 +253,7 @@ async def rescuer_alerts_websocket(
     try:
         current_user = get_user_from_token(token, db)
 
-        if not current_user or not is_rescue_role(normalize_role(current_user["role"])):
+        if not current_user or not has_rescuer_privileges(current_user):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
@@ -286,7 +286,7 @@ def get_assigned_alerts(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if not is_rescue_role(normalize_role(current_user["role"])):
+    if not has_rescuer_privileges(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return AlertService.get_assigned_alerts_for_rescuer(
@@ -302,7 +302,7 @@ def accept_alert(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if not is_rescue_role(normalize_role(current_user["role"])):
+    if not has_rescuer_privileges(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return AlertService.accept_alert(db, alert_id, current_user)
@@ -314,7 +314,7 @@ def start_intervention(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if not is_rescue_role(normalize_role(current_user["role"])):
+    if not has_rescuer_privileges(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return AlertService.start_intervention(db, alert_id, current_user)
@@ -326,7 +326,7 @@ def resolve_alert(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if not is_rescue_role(normalize_role(current_user["role"])):
+    if not has_rescuer_privileges(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return AlertService.resolve_alert_by_rescuer(db, alert_id, current_user)
@@ -340,7 +340,7 @@ def get_rescuer_dashboard_stats(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    if not is_rescue_role(normalize_role(current_user["role"])):
+    if not has_rescuer_privileges(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return AlertService.get_rescuer_dashboard_stats(

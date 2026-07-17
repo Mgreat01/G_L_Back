@@ -80,7 +80,8 @@ class AuthService:
                 public_key=payload.public_key,
                 public_key_algorithm=payload.public_key_algorithm,
                 is_active=True,
-                email_verified=False
+                email_verified=False,
+                is_rescuer=False
             )
 
             db.add(user)
@@ -100,7 +101,8 @@ class AuthService:
                     "email": user.email,
                     "role": user.role,
                     "is_active": user.is_active,
-                    "email_verified": user.email_verified
+                    "email_verified": user.email_verified,
+                    "is_rescuer": user.is_rescuer
                 }
             }
 
@@ -159,6 +161,12 @@ class AuthService:
                 detail="Invalid credentials"
             )
 
+        if user.role == "rescuer" and not user.is_rescuer:
+            raise HTTPException(
+                status_code=403,
+                detail="Rescuer account not authorized"
+            )
+
         token = create_access_token(user)
 
         return {
@@ -170,7 +178,8 @@ class AuthService:
                     "email": user.email,
                     "role": user.role,
                     "is_active": user.is_active,
-                    "email_verified": user.email_verified
+                    "email_verified": user.email_verified,
+                    "is_rescuer": user.is_rescuer
                 }
             }
 
@@ -190,7 +199,8 @@ class AuthService:
             "email": user.email,
             "role": user.role,
             "is_active": user.is_active,
-            "email_verified": user.email_verified
+            "email_verified": user.email_verified,
+            "is_rescuer": user.is_rescuer
         }
 
     @staticmethod
@@ -209,7 +219,8 @@ class AuthService:
             "email": user.email,
             "role": user.role,
             "is_active": user.is_active,
-            "email_verified": user.email_verified
+            "email_verified": user.email_verified,
+            "is_rescuer": user.is_rescuer
         }
 
     @staticmethod
@@ -226,6 +237,7 @@ class AuthService:
                 "role": user.role,
                 "is_active": user.is_active,
                 "email_verified": user.email_verified,
+                "is_rescuer": user.is_rescuer,
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
             for user in users
@@ -243,7 +255,28 @@ class AuthService:
                 "role": user.role,
                 "is_active": user.is_active,
                 "email_verified": user.email_verified,
+                "is_rescuer": user.is_rescuer,
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
             for user in users
         ]
+
+    @staticmethod
+    def set_rescuer_status(db: Session, user_id: str, is_rescuer: bool):
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.is_rescuer = is_rescuer
+        db.commit()
+        db.refresh(user)
+
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified,
+            "is_rescuer": user.is_rescuer
+        }

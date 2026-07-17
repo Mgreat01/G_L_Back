@@ -91,3 +91,13 @@ def get_all_users(
     current_user: dict = Depends(require_roles(["admin"]))
 ):
     return AuthService.get_all_users(db)
+
+
+@router.put("/users/{user_id}/rescuer-status")
+def set_rescuer_status(
+    user_id: str,
+    is_rescuer: bool,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    return AuthService.set_rescuer_status(db, user_id, is_rescuer)

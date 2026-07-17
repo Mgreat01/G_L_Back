@@ -15,6 +15,8 @@ from app.core.security import (
     require_roles
 )
 
+from app.core.permissions import has_rescuer_privileges
+
 router = APIRouter(
     prefix="/profiles",
     tags=["Profiles"]
@@ -40,14 +42,10 @@ def my_profile(
 
 @router.get("/rescue-team/public-keys")
 def rescue_public_keys(
-    current_user = Depends(
-        require_roles([
-            "rescuer",
-            "rescue_team",
-            "admin"
-        ])
-    ),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not (has_rescuer_privileges(current_user) or current_user["role"] == "admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     return ProfileService.get_rescue_keys(db)

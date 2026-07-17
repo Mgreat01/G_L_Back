@@ -77,6 +77,7 @@ def create_access_token(user):
         "sub": str(user.id),
         "email": user.email,
         "role": user.role,
+        "is_rescuer": user.is_rescuer,
         "exp": expire
     }
 
@@ -110,7 +111,8 @@ def get_user_from_token(token: str, db):
                     User.role,
                     User.username,
                     User.is_active,
-                    User.email_verified
+                    User.email_verified,
+                    User.is_rescuer
                 )
             )\
             .filter(User.id == user_id)\
@@ -129,7 +131,8 @@ def get_user_from_token(token: str, db):
             "role": user.role,
             "username": user.username,
             "is_active": user.is_active,
-            "email_verified": user.email_verified
+            "email_verified": user.email_verified,
+            "is_rescuer": user.is_rescuer
         }
 
     except JWTError:
