@@ -60,11 +60,10 @@ def me(
 @router.put("/users/{user_id}/activation")
 def set_account_active(
     user_id: str,
-    is_active: bool,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["admin"]))
 ):
-    return AuthService.set_account_active(db, user_id, is_active)
+    return AuthService.set_account_active(db, user_id)
 
 
 @router.put("/users/{user_id}/verify-email")
@@ -96,8 +95,7 @@ def get_all_users(
 @router.put("/users/{user_id}/rescuer-status")
 def set_rescuer_status(
     user_id: str,
-    is_rescuer: bool,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_roles(["admin"]))
 ):
-    return AuthService.set_rescuer_status(db, user_id, is_rescuer)
+    return AuthService.set_rescuer_status(db, user_id)

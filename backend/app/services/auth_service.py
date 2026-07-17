@@ -184,13 +184,13 @@ class AuthService:
             }
 
     @staticmethod
-    def set_account_active(db: Session, user_id: str, is_active: bool):
+    def set_account_active(db: Session, user_id: str):
         user = db.query(User).filter(User.id == user_id).first()
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user.is_active = is_active
+        user.is_active = not user.is_active
         db.commit()
         db.refresh(user)
 
@@ -262,13 +262,13 @@ class AuthService:
         ]
 
     @staticmethod
-    def set_rescuer_status(db: Session, user_id: str, is_rescuer: bool):
+    def set_rescuer_status(db: Session, user_id: str):
         user = db.query(User).filter(User.id == user_id).first()
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user.is_rescuer = is_rescuer
+        user.is_rescuer = not user.is_rescuer
         db.commit()
         db.refresh(user)
 
