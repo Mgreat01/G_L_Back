@@ -19,6 +19,7 @@ from app.core.permissions import (
     can_update_alert,
     can_assign_alert
 )
+from app.domain.alerts.rules import can_transition
 from app.utils.gps import create_point
 import requests
 
@@ -537,6 +538,12 @@ class AlertService:
         previous_assigned_to = alert.assigned_to
 
         if payload.status:
+            if payload.status != alert.status and not can_transition(alert.status, payload.status):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Invalid alert transition: {alert.status} -> {payload.status}"
+                )
+
             if is_owner and payload.status != "cancelled" and role == "user":
                 raise HTTPException(
                     status_code=403,
@@ -647,11 +654,11 @@ class AlertService:
         if not is_rescue_role(current_user["role"]):
             raise HTTPException(status_code=403, detail="Access denied")
 
-        if not current_user.get("email_verified"):
-            raise HTTPException(
-                status_code=403,
-                detail="Only verified rescuers can self-assign alerts"
-            )
+        # if not current_user.get("email_verified"):
+        #     raise HTTPException(
+        #         status_code=403,
+        #         detail="Only verified rescuers can self-assign alerts"
+        #     )
 
         alert = db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
         if not alert:
