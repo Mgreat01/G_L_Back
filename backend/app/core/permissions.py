@@ -1,4 +1,4 @@
-from app.services.crypto_service import normalize_role, is_privileged_role, is_rescue_role
+from app.domain.users.roles import normalize_role, is_privileged_role, is_rescue_role
 
 
 def can_view_alert(current_user: dict, alert) -> bool:
