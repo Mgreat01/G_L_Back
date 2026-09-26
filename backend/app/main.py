@@ -1,12 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.database import engine, Base
-
-from app.routes.alert_routes import router as alert_router
-from app.routes.location_routes import router as location_router
-from app.routes.profile_routes import router as profile_router
-from app.routes.auth_routes import router as auth_router
+from app.infrastructure.persistence import engine, Base
+from app.presentation.api import alert_router, auth_router, location_router, profile_router
 
 # Import models
 from app.models.alert_model import Alert
